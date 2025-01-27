@@ -12,5 +12,6 @@
   "11": "Multilanguage Support & various bugfixes.",
   "12": "UI_TRAFFIC_STATS, Import json configurations with no PreShared-Key, allow clients with no privateKey & more.",
   "13": "New framework (h3), UI_CHART_TYPE, some bugfixes & more.",
-  "14": "Home Assistent support, PASSWORD_HASH (inc. Helper), translation updates bugfixes & more."
+  "14": "Home Assistent support, PASSWORD_HASH (inc. Helper), translation updates bugfixes & more.",
+  "15": "ARM arch support, manually builds amneziawg, blocks LAN traffic by default"
 }

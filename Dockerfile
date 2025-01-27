@@ -1,6 +1,5 @@
-# As a workaround we have to build on nodejs 18
-# nodejs 20 hangs on build with armv6/armv7
-FROM docker.io/library/node:18-alpine AS build_node_modules
+# Build the control panel server
+FROM docker.io/library/node:22-alpine AS build_node_modules
 
 # Update npm to latest
 RUN npm install -g npm@latest
@@ -11,9 +10,31 @@ WORKDIR /app
 RUN npm ci --omit=dev &&\
     mv node_modules /node_modules
 
+# Build amneziawg itself
+FROM alpine:3.21 AS build_tools
+
+RUN apk add --no-cache git make gcc musl-dev linux-headers go
+
+WORKDIR /tools
+# Build tools (awg and awg-quick)
+RUN git clone https://github.com/amnezia-vpn/amneziawg-tools.git
+RUN cd amneziawg-tools/src && make
+
+# Build amneziawg-go
+RUN git clone https://github.com/amnezia-vpn/amneziawg-go.git
+RUN cd amneziawg-go && make
+
 # Copy build result to a new image.
 # This saves a lot of disk space.
-FROM amneziavpn/amnezia-wg:latest
+FROM alpine:3.21
+
+COPY --from=build_tools /tools/amneziawg-go/amneziawg-go /usr/bin/amneziawg-go
+COPY --from=build_tools /tools/amneziawg-tools/src/wg /usr/bin/wg
+COPY --from=build_tools /tools/amneziawg-tools/src/wg-quick/linux.bash /usr/bin/wg-quick
+
+# Link it to its other name (optional)
+RUN ln -s /usr/bin/wg /usr/bin/awg && ln -s /usr/bin/wg-quick /usr/bin/awg-quick
+
 HEALTHCHECK CMD /usr/bin/timeout 5s /bin/sh -c "/usr/bin/wg show | /bin/grep -q interface || exit 1" --interval=1m --timeout=5s --retries=3
 COPY --from=build_node_modules /app /app
 
@@ -32,18 +53,25 @@ RUN chmod +x /bin/wgpw
 
 # Install Linux packages
 RUN apk add --no-cache \
+    iproute2 \
+    iptables \
+    bash \
     dpkg \
     dumb-init \
-    iptables \
+    # iptables-legacy \
     nodejs \
     npm
 
-# Use iptables-legacy
-RUN update-alternatives --install /sbin/iptables iptables /sbin/iptables-legacy 10 --slave /sbin/iptables-restore iptables-restore /sbin/iptables-legacy-restore --slave /sbin/iptables-save iptables-save /sbin/iptables-legacy-save
+# Use iptables-legacy (I don't think we need this anymore)
+# RUN update-alternatives --install /sbin/iptables iptables /usr/sbin/iptables-legacy 10 --slave /sbin/iptables-restore iptables-restore /usr/sbin/iptables-legacy-restore --slave /sbin/iptables-save iptables-save /usr/sbin/iptables-legacy-save
 
 # Set Environment
 ENV DEBUG=Server,WireGuard
 
-# Run Web UI
+# Make the default dir for wg0.conf
+# RUN mkdir -p /etc/amnezia/amneziawg/
+
 WORKDIR /app
+
+# Run Web UI
 CMD ["/usr/bin/dumb-init", "node", "server.js"]
