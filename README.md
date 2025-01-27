@@ -23,6 +23,13 @@ You have found the easiest way to install & manage WireGuard on any Linux host!
 * Client Expiry (default off)
 * Prometheus metrics support
 
+### Features added in this fork:
+* Support latest version of amneziawg by building from source
+* Removed iptables-legacy
+* Added firewall rules to prevent access to LAN (feel free to remove them with WG_POST_UP)
+* Updated node version
+* 
+
 ## Requirements
 
 * A host with Docker installed.
@@ -53,7 +60,7 @@ To automatically install & run wg-easy, simply run:
   -e PASSWORD_HASH=<🚨YOUR_ADMIN_PASSWORD_HASH> \
   -e PORT=51821 \
   -e WG_PORT=51820 \
-  -v ~/.amnezia-wg-easy:/etc/wireguard \
+  -v ~/.amnezia-wg-easy:/etc/amnezia/amneziawg/ \
   -p 51820:51820/udp \
   -p 51821:51821/tcp \
   --cap-add=NET_ADMIN \
