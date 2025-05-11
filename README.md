@@ -3,7 +3,7 @@
 You have found the easiest way to install & manage WireGuard on any Linux host!
 
 <p align="center">
-  <img src="./assets/screenshot.png" width="802" />
+  <img src="./assets/screenshot.png" width="802" alt="screenshot"/>
 </p>
 
 ## Features
@@ -23,12 +23,12 @@ You have found the easiest way to install & manage WireGuard on any Linux host!
 * Client Expiry (default off)
 * Prometheus metrics support
 
-### Features added in this fork:
+### Features added in this fork
+
 * Support latest version of amneziawg by building from source
 * Removed iptables-legacy
 * Added firewall rules to prevent access to LAN (feel free to remove them with WG_POST_UP)
 * Updated node version
-* 
 
 ## Requirements
 
@@ -52,7 +52,7 @@ And log in again.
 
 To automatically install & run wg-easy, simply run:
 
-```
+```bash
   docker run -d \
   --name=amnezia-wg-easy \
   -e LANG=en \
@@ -69,7 +69,7 @@ To automatically install & run wg-easy, simply run:
   --sysctl="net.ipv4.ip_forward=1" \
   --device=/dev/net/tun:/dev/net/tun \
   --restart unless-stopped \
-  ghcr.io/w0rng/amnezia-wg-easy
+  ghcr.io/wowly/amnezia-wg-easy
 ```
 
 > 💡 Replace `YOUR_SERVER_IP` with your WAN IP, or a Dynamic DNS hostname.
@@ -135,7 +135,7 @@ To update to the latest version, simply run:
 ```bash
 docker stop amnezia-wg-easy
 docker rm amnezia-wg-easy
-docker pull ghcr.io/w0rng/amnezia-wg-easy
+docker pull ghcr.io/wowly/amnezia-wg-easy
 ```
 
 And then run the `docker run -d \ ...` command above again.
