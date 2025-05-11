@@ -7,26 +7,25 @@ RUN npm install -g npm@latest
 # Copy Web UI
 COPY src /app
 WORKDIR /app
-RUN npm ci --omit=dev &&\
+RUN npm ci --omit=dev && \
     mv node_modules /node_modules
 
 # Build amneziawg itself
-FROM alpine:3.21 AS build_tools
-
-RUN apk add --no-cache git make gcc musl-dev linux-headers go
+FROM golang:1.24-alpine AS build_tools
+RUN apk add --no-cache git make gcc musl-dev linux-headers
 
 WORKDIR /tools
 # Build tools (awg and awg-quick)
-RUN git clone https://github.com/amnezia-vpn/amneziawg-tools.git
+RUN git clone --branch v1.0.20241018 --single-branch https://github.com/amnezia-vpn/amneziawg-tools.git
 RUN cd amneziawg-tools/src && make
 
 # Build amneziawg-go
-RUN git clone https://github.com/amnezia-vpn/amneziawg-go.git
+RUN git clone --branch v0.2.12 --single-branch https://github.com/amnezia-vpn/amneziawg-go.git
 RUN cd amneziawg-go && make
 
 # Copy build result to a new image.
 # This saves a lot of disk space.
-FROM alpine:3.21
+FROM alpine:3.21 AS runtime
 
 COPY --from=build_tools /tools/amneziawg-go/amneziawg-go /usr/bin/amneziawg-go
 COPY --from=build_tools /tools/amneziawg-tools/src/wg /usr/bin/wg
