@@ -1,18 +1,13 @@
-volumes:
-  etc_wireguard:
-
 services:
   amnezia-wg-easy:
+    container_name: amnezia-wg-easy
+    image: ghcr.io/wowly/amnezia-wg-easy:latest
+    restart: unless-stopped
     env_file:
       - .env
-    image: ghcr.io/wowly/amnezia-wg-easy
-    container_name: amnezia-wg-easy
-    volumes:
-      - etc_wireguard:/etc/wireguard
     ports:
       - "${WG_PORT}:${WG_PORT}/udp"
       - "${PORT}:${PORT}/tcp"
-    restart: unless-stopped
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -21,4 +16,6 @@ services:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
     devices:
-    - /dev/net/tun:/dev/net/tun
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./config:/etc/amnezia/amneziawg

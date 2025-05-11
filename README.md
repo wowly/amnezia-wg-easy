@@ -29,6 +29,8 @@ You have found the easiest way to install & manage WireGuard on any Linux host!
 * Removed iptables-legacy
 * Added firewall rules to prevent access to LAN (feel free to remove them with WG_POST_UP)
 * Updated node version
+* Latest golang version
+* Fully transparent docker image build in ghcr.io
 
 ## Requirements
 
