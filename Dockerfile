@@ -16,7 +16,7 @@ RUN apk add --no-cache git make gcc musl-dev linux-headers
 
 WORKDIR /tools
 # Build tools (awg and awg-quick)
-RUN git clone --branch v1.0.20241018 --single-branch https://github.com/amnezia-vpn/amneziawg-tools.git
+RUN git clone --branch v1.0.20250706 --single-branch https://github.com/amnezia-vpn/amneziawg-tools.git
 RUN cd amneziawg-tools/src && make
 
 # Build amneziawg-go
