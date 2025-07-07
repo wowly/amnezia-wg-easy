@@ -25,7 +25,7 @@ RUN cd amneziawg-go && make
 
 # Copy build result to a new image.
 # This saves a lot of disk space.
-FROM alpine:3.21 AS runtime
+FROM alpine:3.22 AS runtime
 
 COPY --from=build_awg /tools/amneziawg-go/amneziawg-go /usr/bin/amneziawg-go
 COPY --from=build_awg /tools/amneziawg-tools/src/wg /usr/bin/wg
