@@ -1,5 +1,5 @@
 # Build the control panel server
-FROM docker.io/library/node:lts-alpine AS build_node
+FROM docker.io/library/node:22-alpine AS build_node
 
 # Update npm to latest
 RUN npm install -g npm@latest
