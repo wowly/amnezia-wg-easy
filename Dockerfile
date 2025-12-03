@@ -20,7 +20,7 @@ RUN git clone --branch v1.0.20250901 --single-branch https://github.com/amnezia-
 RUN cd amneziawg-tools/src && make
 
 # Build amneziawg-go
-RUN git clone --branch v0.2.15 --single-branch https://github.com/amnezia-vpn/amneziawg-go.git
+RUN git clone --branch v0.2.16 --single-branch https://github.com/amnezia-vpn/amneziawg-go.git
 RUN cd amneziawg-go && make
 
 # Copy build result to a new image.
