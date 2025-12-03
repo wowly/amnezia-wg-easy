@@ -11,7 +11,7 @@ RUN npm ci --omit=dev && \
     mv node_modules /node_modules
 
 # Build amneziawg itself
-FROM golang:1.24-alpine AS build_awg
+FROM golang:1.25-alpine AS build_awg
 RUN apk add --no-cache git make gcc musl-dev linux-headers
 
 WORKDIR /tools
