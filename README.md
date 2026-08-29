@@ -8,7 +8,7 @@ You have found the easiest way to install & manage WireGuard on any Linux host!
 
 ## Features
 
-* All-in-one: AmneziaWG + Web UI.
+* All-in-one: AmneziaWG 2.0 + Web UI.
 * Easy installation, simple to use.
 * List, create, edit, delete, enable & disable clients.
 * Show a client's QR code.
@@ -123,12 +123,22 @@ These options can be configured by setting environment variables using `-e KEY="
 | `JMAX`                        | `1000`            | `250`                          | Junk packet maximum size — maximum size for Junk packets.                                                                                                                                                                |
 | `S1`                          | `random`          | `75`                           | Init packet junk size — the size of random data that will be added to the init packet, the size of which is initially fixed.                                                                                             |
 | `S2`                          | `random`          | `75`                           | Response packet junk size — the size of random data that will be added to the response packet, the size of which is initially fixed.                                                                                     |
+| `S3`                          | `random`          | `32`                           | Cookie reply packet padding used by AmneziaWG 2.0.                                                                                                                                                                       |
+| `S4`                          | `random`          | `32`                           | Transport packet padding used by AmneziaWG 2.0.                                                                                                                                                                          |
 | `H1`                          | `random`          | `1234567891`                   | Init packet magic header — the header of the first byte of the handshake. Must be < uint_max.                                                                                                                            |
 | `H2`                          | `random`          | `1234567892`                   | Response packet magic header — header of the first byte of the handshake response. Must be < uint_max.                                                                                                                   |
 | `H3`                          | `random`          | `1234567893`                   | Underload packet magic header — UnderLoad packet header. Must be < uint_max.                                                                                                                                             |
 | `H4`                          | `random`          | `1234567894`                   | Transport packet magic header — header of the packet of the data packet. Must be < uint_max.                                                                                                                             |
+| `I1` ... `I5`                | `<r random>`      | `<b 0x0102><r 16>`             | AmneziaWG 2.0 custom signature packet templates. Supported tags are `<b 0x...>`, `<r N>`, `<rd N>`, `<rc N>`, and `<t>`.                                                                                                  |
 
 > If you change `WG_PORT`, make sure to also change the exposed port.
+
+Fresh installations generate an AmneziaWG 2.0 server configuration and include
+the same 2.0 parameters in downloaded configurations and QR codes. Existing
+`wg0.json` files are intentionally not upgraded: `S3` and `S4` apply to the whole
+interface, so changing them would invalidate every previously downloaded client
+configuration. Migrating an existing AmneziaWG 1.x installation therefore
+requires a coordinated replacement of all client configurations.
 
 ## Updating
 
