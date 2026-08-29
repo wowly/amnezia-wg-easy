@@ -19,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        ref: master
+        ref: ${{ github.sha }}
 
     - name: Docker meta
       id: meta
@@ -31,6 +31,7 @@ jobs:
           type=ref,event=branch
           type=ref,event=tag
           type=pep440,pattern={{version}}
+          type=sha,format=long
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v4
