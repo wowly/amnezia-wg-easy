@@ -2,6 +2,12 @@
 
 const { release: { version } } = require('./package.json');
 
+const protocolVersion = process.env.AWG_PROTOCOL_VERSION;
+if (protocolVersion !== undefined && !['1', '2', '3'].includes(protocolVersion)) {
+  throw new Error('AWG_PROTOCOL_VERSION must be 1, 2, or 3 (AmneziaWG 3.1)');
+}
+module.exports.AWG_PROTOCOL_VERSION = protocolVersion === undefined ? null : Number(protocolVersion);
+
 module.exports.RELEASE = version;
 module.exports.PORT = process.env.PORT || '51821';
 module.exports.WEBUI_HOST = process.env.WEBUI_HOST || '0.0.0.0';

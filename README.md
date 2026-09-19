@@ -91,6 +91,7 @@ These options can be configured by setting environment variables using `-e KEY="
 
 | Env                           | Default           | Example                        | Description                                                                                                                                                                                                              |
 |-------------------------------|-------------------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AWG_PROTOCOL_VERSION`        | Saved version / `2` | `3`                          | Select `1`, `2`, or `3` (AmneziaWG 3.1). Explicitly setting it also migrates an existing installation; see below. |
 | `PORT`                        | `51821`           | `6789`                         | TCP port for Web UI.                                                                                                                                                                                                     |
 | `WEBUI_HOST`                  | `0.0.0.0`         | `localhost`                    | IP address web UI binds to.                                                                                                                                                                                              |
 | `PASSWORD_HASH`               | -                 | `$2y$05$Ci...`                 | When set, requires a password when logging in to the Web UI. See [How to generate an bcrypt hash.md]("https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md") for know how generate the hash. |
@@ -133,12 +134,60 @@ These options can be configured by setting environment variables using `-e KEY="
 
 > If you change `WG_PORT`, make sure to also change the exposed port.
 
-Fresh installations generate an AmneziaWG 2.0 server configuration and include
-the same 2.0 parameters in downloaded configurations and QR codes. Existing
-`wg0.json` files are intentionally not upgraded: `S3` and `S4` apply to the whole
-interface, so changing them would invalidate every previously downloaded client
-configuration. Migrating an existing AmneziaWG 1.x installation therefore
-requires a coordinated replacement of all client configurations.
+### AmneziaWG protocol version
+
+Set `AWG_PROTOCOL_VERSION` in `.env` (loaded by Docker Compose) or pass it with
+`docker run -e AWG_PROTOCOL_VERSION=3`:
+
+| Value | Protocol |
+| --- | --- |
+| `1` | AmneziaWG 1.x: `Jc`, `Jmin`, `Jmax`, `S1`, `S2`, `H1`–`H4` |
+| `2` | AmneziaWG 2.0: additionally `S3`, `S4`, `I1`–`I5` |
+| `3` | AmneziaWG 3.1: additionally header protection, content padding, and optional timing settings |
+
+Use `3`, not `3.1`. Other values, including an empty value, cause a startup error.
+When omitted, new installations use version `2` and existing installations keep
+their saved version, including legacy `wg0.json` files without `protocolVersion`.
+
+To switch an existing installation to 3.1, add this line to `.env` and recreate
+the container with `docker compose up -d --force-recreate`:
+
+```dotenv
+AWG_PROTOCOL_VERSION=3
+```
+
+An explicit version applies to existing configurations too. Client records,
+addresses, and WireGuard keys are preserved. Parameters specific to newer
+versions are removed when downgrading. **After changing versions, download and
+import updated configurations (or scan new QR codes) on all clients.** Version
+3 requires clients supporting AmneziaWG 3.1. Back up `wg0.json` before migrating.
+Downgrading to version 1 requires single integers in `H1`–`H4`, not ranges.
+
+For version 3, a random 32-byte `HeaderProtectionKey` is generated once and saved
+in `wg0.json`. The same key is included in server, download, and QR configurations
+and survives container restarts. Existing `S1`–`S4` values below 12 are raised to
+12 during migration; explicitly supplied ENV values below 12 are rejected.
+
+The following optional ENV variables apply only to version 3. Explicit values
+override saved values on startup; otherwise saved values are retained.
+
+| Variable | Default for a new 3.1 configuration | Format |
+| --- | --- | --- |
+| `HEADER_PROTECTION_KEY` | Generated and persisted | Nonzero 32-byte base64 key |
+| `CONTENT_PADDING_ADDITION` | `0-64` | Integer or inclusive range, e.g. `16-128` |
+| `REKEY_AFTER_TIME` | Protocol default | Seconds, integer or range |
+| `REKEY_TIMEOUT` | Protocol default | Seconds, integer or range |
+| `REJECT_AFTER_TIME` | Protocol default | Seconds, integer or range |
+| `KEEPALIVE_TIMEOUT` | Protocol default | Seconds, integer or range |
+| `MAX_HANDSHAKE_ATTEMPTS` | Protocol default | Count, integer or range |
+| `RANDOM_TRAILERS` | Protocol default | `0`, `1`, `off`, or `on` |
+| `DISABLE_COOKIES` | Protocol default | `0`, `1`, `off`, or `on` |
+
+Numeric values and range endpoints above are limited to `0`–`65535` by the
+bundled `amneziawg-tools`. `WG_PERSISTENT_KEEPALIVE` also accepts a range with
+version 3. The Dockerfile already pins 3.1-compatible tools and userspace engine.
+See the [upstream protocol documentation](https://github.com/amnezia-vpn/amneziawg-go/tree/v3.1.20260828#configuration)
+for parameter semantics.
 
 ## Updating
 

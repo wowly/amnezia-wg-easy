@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { spawnSync } = require('node:child_process');
 const QRCode = require('qrcode');
 
 const testDirectory = path.join(
@@ -15,7 +16,13 @@ const testDirectoryReady = fs.mkdir(testDirectory, { recursive: true });
 
 process.env.WG_HOST = 'vpn.example.com';
 process.env.WG_PATH = testDirectory;
-for (const key of ['S3', 'S4', 'I1', 'I2', 'I3', 'I4', 'I5']) {
+const protocolEnv = [
+  'AWG_PROTOCOL_VERSION', 'S1', 'S2', 'S3', 'S4', 'I1', 'I2', 'I3', 'I4', 'I5',
+  'HEADER_PROTECTION_KEY', 'CONTENT_PADDING_ADDITION', 'REKEY_AFTER_TIME',
+  'REKEY_TIMEOUT', 'REJECT_AFTER_TIME', 'KEEPALIVE_TIMEOUT', 'MAX_HANDSHAKE_ATTEMPTS',
+  'RANDOM_TRAILERS', 'DISABLE_COOKIES',
+];
+for (const key of protocolEnv) {
   delete process.env[key];
 }
 
@@ -29,6 +36,13 @@ Util.exec = async (command) => (command.includes('pubkey')
   : 'server-private-key');
 
 const WireGuard = require('../lib/WireGuard');
+const settings = require('../config');
+const { applyProtocolVersion } = require('../lib/AmneziaConfig');
+
+test.afterEach(() => {
+  settings.AWG_PROTOCOL_VERSION = null;
+  for (const key of protocolEnv) delete process.env[key];
+});
 
 const legacyServer = {
   privateKey: 'legacy-server-private-key',
@@ -143,4 +157,134 @@ test('server, downloaded, and QR source configs contain AWG 2.0 fields', async (
     assert.match(generated, /^I5 = <t>$/m);
     assert.doesNotMatch(generated, /undefined/);
   }
+});
+
+test('ENV accepts exactly 1, 2, and 3', () => {
+  for (const value of ['1', '2', '3', '3.1', '0', '4', '', '2foo']) {
+    const result = spawnSync(process.execPath, ['-e', 'require("./config")'], {
+      cwd: path.join(__dirname, '..'),
+      env: { ...process.env, AWG_PROTOCOL_VERSION: value },
+      encoding: 'utf8',
+    });
+    if (['1', '2', '3'].includes(value)) assert.equal(result.status, 0, result.stderr);
+    else assert.match(result.stderr, /AWG_PROTOCOL_VERSION must be/);
+  }
+});
+
+for (const version of [1, 2, 3]) {
+  test(`fresh installation supports explicit protocol ${version}`, async () => {
+    await testDirectoryReady;
+    await fs.rm(path.join(testDirectory, 'wg0.json'), { force: true });
+    settings.AWG_PROTOCOL_VERSION = version;
+    const config = await new WireGuard().__buildConfig();
+    assert.equal(config.server.protocolVersion, version);
+    assert.equal('s3' in config.server, version >= 2);
+    assert.equal('i1' in config.server, version >= 2);
+    assert.equal('headerProtectionKey' in config.server, version === 3);
+  });
+}
+
+test('AWG 3.1 migration preserves clients and keys and exports matching server, download and QR fields', async () => {
+  const original = { server: { ...legacyServer, s1: 0 }, clients: { test: client } };
+  await fs.writeFile(path.join(testDirectory, 'wg0.json'), JSON.stringify(original));
+  settings.AWG_PROTOCOL_VERSION = 3;
+  Object.assign(process.env, {
+    CONTENT_PADDING_ADDITION: '16-128',
+    REKEY_AFTER_TIME: '100-120',
+    REKEY_TIMEOUT: '4-6',
+    REJECT_AFTER_TIME: '160-180',
+    KEEPALIVE_TIMEOUT: '10-15',
+    MAX_HANDSHAKE_ATTEMPTS: '15-20',
+    RANDOM_TRAILERS: '1',
+    DISABLE_COOKIES: '0',
+  });
+  const wireGuard = new WireGuard();
+  const config = await wireGuard.__buildConfig();
+  assert.deepEqual(config.clients, original.clients);
+  assert.equal(config.server.privateKey, legacyServer.privateKey);
+  assert.equal(config.server.publicKey, legacyServer.publicKey);
+  assert.equal(config.server.s1, 12);
+  assert.equal(config.server.s2, legacyServer.s2);
+  assert.equal(Buffer.from(config.server.headerProtectionKey, 'base64').length, 32);
+  await wireGuard.__saveConfig(config);
+
+  let qrSource;
+  QRCode.toString = async (source) => {
+    qrSource = source;
+    return '<svg />';
+  };
+  const downloaded = await wireGuard.getClientConfiguration({ clientId: 'test' });
+  await wireGuard.getClientQRCodeSVG({ clientId: 'test' });
+  const server = await fs.readFile(path.join(testDirectory, 'wg0.conf'), 'utf8');
+  for (const generated of [server, downloaded, qrSource]) {
+    assert.ok(generated.includes(`HeaderProtectionKey = ${config.server.headerProtectionKey}\n`));
+    assert.match(generated, /^ContentPaddingAddition = 16-128$/m);
+    assert.match(generated, /^RekeyAfterTime = 100-120$/m);
+    assert.match(generated, /^RekeyTimeout = 4-6$/m);
+    assert.match(generated, /^RejectAfterTime = 160-180$/m);
+    assert.match(generated, /^KeepaliveTimeout = 10-15$/m);
+    assert.match(generated, /^MaxHandshakeAttempts = 15-20$/m);
+    assert.match(generated, /^RandomTrailers = 1$/m);
+    assert.match(generated, /^DisableCookies = 0$/m);
+    assert.doesNotMatch(generated, /undefined/);
+  }
+  settings.AWG_PROTOCOL_VERSION = null;
+  for (const key of protocolEnv) delete process.env[key];
+  const reloaded = await new WireGuard().__buildConfig();
+  assert.deepEqual(reloaded, config);
+
+  for (const version of [2, 1]) {
+    settings.AWG_PROTOCOL_VERSION = version;
+    const downgraded = await new WireGuard().__buildConfig();
+    assert.equal(downgraded.server.protocolVersion, version);
+    assert.deepEqual(downgraded.clients, original.clients);
+    await wireGuard.__saveConfig(downgraded);
+    const generated = await fs.readFile(path.join(testDirectory, 'wg0.conf'), 'utf8');
+    assert.doesNotMatch(generated, /^(HeaderProtectionKey|ContentPaddingAddition|RandomTrailers|DisableCookies|RekeyAfterTime) =/m);
+    if (version === 1) assert.doesNotMatch(generated, /^(S3|S4|I[1-5]) =/m);
+  }
+});
+
+test('legacy and v2 files are preserved when the protocol ENV is absent', async () => {
+  for (const server of [legacyServer, v2Server]) {
+    const original = { server, clients: { test: client } };
+    await fs.writeFile(path.join(testDirectory, 'wg0.json'), JSON.stringify(original));
+    assert.deepEqual(await new WireGuard().__buildConfig(), original);
+  }
+});
+
+test('invalid AWG 3.1 values fail before overwriting a saved configuration', async () => {
+  settings.AWG_PROTOCOL_VERSION = 3;
+  const original = JSON.stringify({ server: v2Server, clients: { test: client } });
+  await fs.writeFile(path.join(testDirectory, 'wg0.json'), original);
+  for (const [env, value, message] of [
+    ['S1', '11', /S1 must be/],
+    ['S4', '65536', /S4 must be/],
+    ['HEADER_PROTECTION_KEY', 'invalid', /HEADER_PROTECTION_KEY/],
+    ['HEADER_PROTECTION_KEY', Buffer.alloc(32).toString('base64'), /HEADER_PROTECTION_KEY/],
+    ['CONTENT_PADDING_ADDITION', '100-10', /ContentPaddingAddition/],
+    ['REKEY_TIMEOUT', '1\nPostUp=bad', /RekeyTimeout/],
+    ['RANDOM_TRAILERS', 'true', /RandomTrailers/],
+  ]) {
+    process.env[env] = value;
+    await assert.rejects(new WireGuard().getConfig(), message);
+    assert.equal(await fs.readFile(path.join(testDirectory, 'wg0.json'), 'utf8'), original);
+    delete process.env[env];
+  }
+});
+
+test('a custom header key and zero padding addition are preserved', () => {
+  settings.AWG_PROTOCOL_VERSION = 3;
+  process.env.HEADER_PROTECTION_KEY = Buffer.alloc(32, 7).toString('base64');
+  process.env.CONTENT_PADDING_ADDITION = '0';
+  const server = { ...v2Server };
+  applyProtocolVersion(server);
+  assert.equal(server.headerProtectionKey, process.env.HEADER_PROTECTION_KEY);
+  assert.equal(server.contentPaddingAddition, '0');
+});
+
+test('corrupt saved JSON is not replaced with new keys', async () => {
+  await fs.writeFile(path.join(testDirectory, 'wg0.json'), '{broken');
+  await assert.rejects(new WireGuard().getConfig(), SyntaxError);
+  assert.equal(await fs.readFile(path.join(testDirectory, 'wg0.json'), 'utf8'), '{broken');
 });

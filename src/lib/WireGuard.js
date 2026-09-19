@@ -9,6 +9,7 @@ const CRC32 = require('crc-32');
 
 const Util = require('./Util');
 const ServerError = require('./ServerError');
+const { applyProtocolVersion, renderV3Fields } = require('./AmneziaConfig');
 
 const {
   WG_PATH,
@@ -75,11 +76,14 @@ module.exports = class WireGuard {
 
       debug('Loading configuration...');
       let config;
+      let fresh = false;
       try {
         config = await fs.readFile(path.join(WG_PATH, 'wg0.json'), 'utf8');
         config = JSON.parse(config);
         debug('Configuration loaded.');
       } catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        fresh = true;
         const privateKey = await Util.exec('wg genkey');
         const publicKey = await Util.exec(`echo ${privateKey} | wg pubkey`, {
           log: 'echo ***hidden*** | wg pubkey',
@@ -114,6 +118,7 @@ module.exports = class WireGuard {
         debug('Configuration generated.');
       }
 
+      applyProtocolVersion(config.server, fresh);
       return config;
     });
 
@@ -172,7 +177,7 @@ ${renderAmneziaV2Paddings(config.server)}H1 = ${config.server.h1}
 H2 = ${config.server.h2}
 H3 = ${config.server.h3}
 H4 = ${config.server.h4}
-${renderAmneziaSignatures(config.server)}\
+${renderAmneziaSignatures(config.server)}${renderV3Fields(config.server)}\
 `;
 
     for (const [clientId, client] of Object.entries(config.clients)) {
@@ -291,7 +296,7 @@ ${renderAmneziaV2Paddings(config.server)}H1 = ${config.server.h1}
 H2 = ${config.server.h2}
 H3 = ${config.server.h3}
 H4 = ${config.server.h4}
-${renderAmneziaSignatures(config.server)}\
+${renderAmneziaSignatures(config.server)}${renderV3Fields(config.server)}\
 
 [Peer]
 PublicKey = ${config.server.publicKey}
